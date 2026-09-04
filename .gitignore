@@ -43,3 +43,5 @@ Thumbs.db
 /tmp/
 *.tmp
 *.log
+.vercel
+.env*
