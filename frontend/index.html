@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="uz" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TypeCast - O'zbekcha Matn va Hujjatlarni Transliteratsiya Qilish Platformasi</title>
+  <meta name="description" content="Lotin va Kirill alifbosidagi o'zbekcha matn hamda .docx, .doc, .txt hujjatlarni format, jadval va rasmlarni saqlagan holda tezkor transliteratsiya qilish platformasi.">
+  
+  <!-- Modern Typography from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient background glow elements -->
+  <div class="ambient-glow glow-1" aria-hidden="true"></div>
+  <div class="ambient-glow glow-2" aria-hidden="true"></div>
+
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand-group">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m5 8 6 6"></path>
+            <path d="m4 14 6-6 2-3"></path>
+            <path d="M2 5h12"></path>
+            <path d="M7 2h1"></path>
+            <path d="m22 22-5-10-5 10"></path>
+            <path d="M14 18h6"></path>
+          </svg>
+        </div>
+        <div class="brand-titles">
+          <h1 class="brand-name">Type<span>Cast</span></h1>
+          <p class="brand-tagline">O'zbekcha Transliteratsiya Platformasi</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Engine status pill -->
+        <div class="status-pill" id="engineStatusPill" title="Tizim ish holati">
+          <span class="status-dot"></span>
+          <span class="status-text" id="engineStatusText">Tekshirilmoqda...</span>
+        </div>
+
+        <!-- Theme toggle -->
+        <button id="themeToggleBtn" class="icon-btn" aria-label="Mavzuni almashtirish" title="Tun / Kun rejimi">
+          <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2"></path>
+            <path d="M12 20v2"></path>
+            <path d="m4.93 4.93 1.41 1.41"></path>
+            <path d="m17.66 17.66 1.41 1.41"></path>
+            <path d="M2 12h2"></path>
+            <path d="M20 12h2"></path>
+            <path d="m6.34 17.66-1.41 1.41"></path>
+            <path d="m19.07 4.93-1.41 1.41"></path>
+          </svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs" role="tablist">
+      <button class="tab-btn active" id="tabLiveText" role="tab" aria-selected="true" aria-controls="panelLiveText">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 7 4 4 20 4 20 7"></polyline>
+          <line x1="9" y1="20" x2="15" y2="20"></line>
+          <line x1="12" y1="4" x2="12" y2="20"></line>
+        </svg>
+        <span>Tezkor Matn (Live Text)</span>
+      </button>
+
+      <button class="tab-btn" id="tabDocUpload" role="tab" aria-selected="false" aria-controls="panelDocUpload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <path d="M12 18v-6"></path>
+          <path d="m9 15 3-3 3 3"></path>
+        </svg>
+        <span>Hujjat O'girish (.docx, .doc, .txt)</span>
+      </button>
+    </nav>
+
+    <!-- Main Content Panels -->
+    <main class="main-content">
+      
+      <!-- Panel 1: Live Dual-Pane Text Editor -->
+      <section class="tab-panel active" id="panelLiveText" role="tabpanel" aria-labelledby="tabLiveText">
+        
+        <!-- Controls Bar -->
+        <div class="direction-bar">
+          <div class="lang-tag" id="sourceLangTag">
+            <span class="lang-flag">UZ</span>
+            <span class="lang-name" id="sourceLangName">Lotin alifbosi</span>
+          </div>
+
+          <button id="swapDirectionBtn" class="swap-btn" aria-label="Yo'nalishni almashtirish" title="Yo'nalishni almashtirish (Lotin ⇄ Kirill)">
+            <svg class="swap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m16 3 4 4-4 4"></path>
+              <path d="M20 7H4"></path>
+              <path d="m8 21-4-4 4-4"></path>
+              <path d="M4 17h16"></path>
+            </svg>
+          </button>
+
+          <div class="lang-tag" id="targetLangTag">
+            <span class="lang-flag">UZ</span>
+            <span class="lang-name" id="targetLangName">Kirill alifbosi</span>
+          </div>
+
+          <!-- Quick Samples Dropdown/Buttons -->
+          <div class="samples-group">
+            <span class="samples-label">Namunalar:</span>
+            <button class="chip-btn" data-sample="constitution">Konstitutsiya</button>
+            <button class="chip-btn" data-sample="navoiy">Alisher Navoiy</button>
+            <button class="chip-btn" data-sample="digraphs">Shahar & O'zbekiston</button>
+          </div>
+        </div>
+
+        <!-- Dual Textareas Grid -->
+        <div class="dual-editor-grid">
+          
+          <!-- Source Pane -->
+          <div class="editor-pane card" id="sourcePane">
+            <div class="pane-header">
+              <span class="pane-title" id="sourcePaneTitle">Kiritiluvchi matn (Lotin)</span>
+              <div class="pane-actions">
+                <button id="clearTextBtn" class="btn-ghost" title="Matnni tozalash">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                  <span>Tozalash</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="textarea-wrapper">
+              <textarea 
+                id="sourceInput" 
+                placeholder="Matnni bu yerga yozing yoki joylashtiring (Ctrl+V)..." 
+                spellcheck="false"
+                autocomplete="off"
+                autofocus
+              ></textarea>
+            </div>
+
+            <div class="pane-footer">
+              <div class="stats-group">
+                <span class="stat-item"><strong id="sourceCharCount">0</strong> ta belgi</span>
+                <span class="stat-divider">•</span>
+                <span class="stat-item"><strong id="sourceWordCount">0</strong> ta so'z</span>
+              </div>
+              <span class="realtime-badge">⚡ Real-vaqt (0ms)</span>
+            </div>
+          </div>
+
+          <!-- Target Pane -->
+          <div class="editor-pane card" id="targetPane">
+            <div class="pane-header">
+              <span class="pane-title" id="targetPaneTitle">O'girilgan matn (Kirill)</span>
+              <div class="pane-actions">
+                <button id="downloadTxtBtn" class="btn-ghost" title="Matn fayli sifatida yuklab olish">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>.txt</span>
+                </button>
+                <button id="copyOutputBtn" class="btn-primary" title="Nusxa olish">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                  </svg>
+                  <span>Nusxalash</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="textarea-wrapper">
+              <textarea 
+                id="targetOutput" 
+                placeholder="O'girilgan matn bu yerda darhol aks etadi..." 
+                readonly
+                spellcheck="false"
+              ></textarea>
+            </div>
+
+            <div class="pane-footer">
+              <div class="stats-group">
+                <span class="stat-item"><strong id="targetCharCount">0</strong> ta belgi</span>
+                <span class="stat-divider">•</span>
+                <span class="stat-item"><strong id="targetWordCount">0</strong> ta so'z</span>
+              </div>
+              <span class="accuracy-badge">✓ 100% Imlo qoidalari</span>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- Panel 2: Document File Upload & Transliteration -->
+      <section class="tab-panel" id="panelDocUpload" role="tabpanel" aria-labelledby="tabDocUpload">
+        
+        <div class="doc-upload-container">
+          
+          <!-- Direction and Target Format Selector Bar -->
+          <div class="doc-options-card card">
+            <div class="option-col">
+              <label class="option-label" for="docDirectionSelect">O'girish yo'nalishi:</label>
+              <div class="select-wrapper">
+                <select id="docDirectionSelect">
+                  <option value="latin-to-cyrillic" selected>Lotin ➔ Kirill (Lotincha hujjatni Kirillga)</option>
+                  <option value="cyrillic-to-latin">Kirill ➔ Lotin (Kirillcha hujjatni Lotinga)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="option-col">
+              <label class="option-label" for="docFormatSelect">Chiqish fayli formati:</label>
+              <div class="select-wrapper">
+                <select id="docFormatSelect">
+                  <option value="same" selected>Asl formatida saqlash (Tavsiya etiladi)</option>
+                  <option value="docx">Word Hujjati (.docx)</option>
+                  <option value="doc">Word 97-2003 (.doc)</option>
+                  <option value="pdf">PDF Hujjat (.pdf)</option>
+                  <option value="txt">Oddiy matn (.txt)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dropzone Box -->
+          <div class="dropzone-card card" id="fileDropzone">
+            <input type="file" id="fileInput" accept=".docx,.doc,.txt" hidden>
+            
+            <div class="dropzone-content">
+              <div class="upload-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </div>
+
+              <h2 class="dropzone-title">Hujjat faylini bu yerga tashlang</h2>
+              <p class="dropzone-subtitle">yoki qurilmangizdan tanlash uchun <button type="button" class="btn-link" id="browseFileBtn">faylni tanlang</button></p>
+
+              <div class="format-chips">
+                <span class="chip chip-docx">.DOCX (OpenXML)</span>
+                <span class="chip chip-doc">.DOC (Word 97-2003)</span>
+                <span class="chip chip-txt">.TXT (Matn)</span>
+              </div>
+
+              <p class="dropzone-hint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                Jadvallar, shrift bezaklari, rasmlar, sarlavha va bet osti yozuvlari 100% saqlanadi.
+              </p>
+            </div>
+          </div>
+
+          <!-- Selected File & Progress Card (Initially Hidden) -->
+          <div class="progress-card card" id="progressCard" style="display: none;">
+            <div class="file-summary-row">
+              <div class="file-info-group">
+                <div class="file-type-icon" id="fileTypeIcon">DOCX</div>
+                <div class="file-meta">
+                  <div class="file-name" id="fileNameLabel">hujjat.docx</div>
+                  <div class="file-size" id="fileSizeLabel">0 KB</div>
+                </div>
+              </div>
+
+              <button id="cancelFileBtn" class="icon-btn-danger" title="Bekor qilish">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-bar-wrapper">
+              <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+            </div>
+
+            <div class="progress-status-row">
+              <span class="progress-status-text" id="progressStatusText">Jarayon boshlanmoqda...</span>
+              <span class="progress-pct" id="progressPctLabel">0%</span>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="doc-actions-row" id="docActionsRow" style="display: none;">
+              <button id="downloadResultBtn" class="btn-success">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Hujjatni Yuklab Olish</span>
+              </button>
+
+              <button id="convertAnotherBtn" class="btn-ghost">
+                <span>Boshqa hujjat yuklash</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Feature Highlights Card -->
+          <div class="features-grid">
+            <div class="feature-item card">
+              <div class="feature-icon">🛡️</div>
+              <h3>100% Ma'lumot Xavfsizligi</h3>
+              <p>.docx va .txt fayllar bevosita brauzeringizda qayta ishlanadi va serverga yuklanmaydi.</p>
+            </div>
+
+            <div class="feature-item card">
+              <div class="feature-icon">📐</div>
+              <h3>To'liq Geometriya Saqlanadi</h3>
+              <p>Hujjatdagi jadvallar, ustunlar eni, sarlavha va bet raqamlari o'zgarishsiz qoladi.</p>
+            </div>
+
+            <div class="feature-item card">
+              <div class="feature-icon">⚡</div>
+              <h3>Vercel & Bulutga Mos</h3>
+              <p>Platforma Vercel serverless yoki Docker konteynerida yuqori tezlikda ishlaydi.</p>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>TypeCast &copy; 2026. O'zbekiston Respublikasi rasmiy imlo qoidalari asosida yaratildi.</p>
+    </footer>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Scripts: Vendored JSZip, Transliterator, DocxEngine, and App UI logic -->
+  <script src="js/libs/jszip.min.js"></script>
+  <script src="js/transliterator.js"></script>
+  <script src="js/docx_engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
