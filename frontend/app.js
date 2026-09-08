@@ -407,6 +407,11 @@
     var direction = docDirectionSelect.value;
     var targetFormat = docFormatSelect.value;
 
+    // Option 3: Modernize legacy .doc -> .docx by default
+    if (ext === 'doc' && (targetFormat === 'same' || targetFormat === 'docx')) {
+      targetFormat = 'docx';
+    }
+
     updateProgress(5, 'Hujjat tahlil qilinmoqda...');
 
     // Scenario A: Client-side processing (.docx or .txt with matching/txt format)
@@ -444,13 +449,13 @@
     if (!state.backendAvailable) {
       // If user uploaded .doc or requested .pdf while in pure static Vercel mode without Docker backend
       if (ext === 'doc') {
-        updateProgress(0, 'Docker backend talab etiladi');
-        showToast('Word 97-2003 (.doc) fayllari uchun Docker LibreOffice xizmati talab etiladi. Iltimos, faylni .docx formatiga o\'tkazing yoki Docker konteynerini ishga tushiring.', 'error');
+        updateProgress(0, 'Zamonaviy .docx formatiga o\'tkazing');
+        showToast('Word 97-2003 (.doc) eskirgan binar format bo\'lganligi sababli, faylni Word yoki Google Docs dasturida "Boshqa formatda saqlash (.docx)" qilib yuklang. Tizim .docx formatdagi barcha jadvallar, shriftlar va rasmlarni 100% saqlagan holda darhol o\'girib beradi.', 'error');
         resetFileUI();
         return;
       }
       if (targetFormat === 'pdf' || targetFormat === 'doc') {
-        updateProgress(0, 'Docker backend talab etiladi');
+        updateProgress(0, 'Backend xizmati talab etiladi');
         showToast('.pdf va .doc eksport qilish uchun LibreOffice backend xizmati talab etiladi.', 'error');
         resetFileUI();
         return;
@@ -459,7 +464,11 @@
 
     // Send to Backend API
     try {
-      updateProgress(20, 'Fayl serverga yuborilmoqda...');
+      if (ext === 'doc') {
+        updateProgress(20, 'Eski Word (.doc) zamonaviy (.docx) ga modernizatsiya qilinmoqda...');
+      } else {
+        updateProgress(20, 'Fayl serverga yuborilmoqda...');
+      }
 
       var formData = new FormData();
       formData.append('file', file);

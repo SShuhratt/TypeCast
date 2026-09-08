@@ -125,6 +125,28 @@ class TestDocHandler(unittest.TestCase):
         self.assertTrue(pdf_path.endswith(".pdf"))
         self.assertGreater(os.path.getsize(pdf_path), 0)
 
+    def test_doc_auto_modernization_to_docx(self):
+        """Tests that .doc files default to modern .docx output under Option 3."""
+        soffice = shutil.which("soffice") or shutil.which("libreoffice")
+        if not soffice:
+            self.skipTest("LibreOffice not installed on system.")
+
+        input_txt = os.path.join(self.test_dir, "modernize.txt")
+        with open(input_txt, "w", encoding="utf-8") as f:
+            f.write("O'zbekiston - buyuk yurt.")
+
+        doc_path = run_libreoffice_conversion(input_txt, "doc", self.test_dir)
+        self.assertTrue(doc_path.endswith(".doc"))
+
+        # Under Option 3, target_format="same" modernizes .doc to .docx
+        result = process_document(
+            doc_path,
+            os.path.join(self.test_dir, "out_modern"),
+            direction="latin-to-cyrillic",
+            target_format="same",
+        )
+        self.assertTrue(result.endswith(".docx"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -227,9 +227,10 @@ def process_document(
     base_name, in_ext = os.path.splitext(filename)
     in_ext = in_ext.lower().lstrip(".")
 
-    # Default target format to the same format as uploaded
+    # Default target format to the same format as uploaded,
+    # but for legacy .doc default to modern .docx (Option 3: Modernize .doc -> .docx)
     if not target_format or target_format.lower() == "same":
-        out_format = in_ext
+        out_format = "docx" if in_ext == "doc" else in_ext
     else:
         out_format = target_format.lower().lstrip(".")
 
