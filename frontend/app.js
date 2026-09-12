@@ -414,14 +414,15 @@
 
     updateProgress(5, 'Hujjat tahlil qilinmoqda...');
 
-    // Scenario A: Client-side processing (.docx or .txt with matching/txt format)
+    // Scenario A: Client-side processing (.docx, .doc, or .txt)
     var canProcessClientSide = (ext === 'docx' && (targetFormat === 'same' || targetFormat === 'docx')) ||
+                               (ext === 'doc' && (targetFormat === 'same' || targetFormat === 'docx')) ||
                                (ext === 'txt' && (targetFormat === 'same' || targetFormat === 'txt'));
 
     if (canProcessClientSide) {
       try {
         var resultBlob;
-        var outExt = targetFormat === 'same' ? ext : targetFormat;
+        var outExt = targetFormat === 'same' ? (ext === 'doc' ? 'docx' : ext) : targetFormat;
         var baseName = file.name.substring(0, file.name.lastIndexOf('.'));
         state.convertedFileName = baseName + '_' + (direction === 'latin-to-cyrillic' ? 'kirill' : 'lotin') + '.' + outExt;
 
@@ -429,6 +430,11 @@
           resultBlob = await DocxEngine.transliterateDocx(file, direction, function (pct, msg) {
             updateProgress(pct, msg);
           });
+        } else if (ext === 'doc') {
+          resultBlob = await DocxEngine.transliterateDoc(file, direction, function (pct, msg) {
+            updateProgress(pct, msg);
+          });
+          showToast('Word 97-2003 (.doc) zamonaviy .docx formatiga muvaffaqiyatli modernizatsiya qilindi!', 'success');
         } else {
           updateProgress(30, 'Matn o\'qilmoqda...');
           resultBlob = await DocxEngine.transliterateTxt(file, direction);
@@ -445,18 +451,11 @@
       return;
     }
 
-    // Scenario B: Backend Processing (Required for .doc, or conversions to .pdf)
+    // Scenario B: Backend Processing (Required for exports to .pdf or legacy .doc)
     if (!state.backendAvailable) {
-      // If user uploaded .doc or requested .pdf while in pure static Vercel mode without Docker backend
-      if (ext === 'doc') {
-        updateProgress(0, 'Zamonaviy .docx formatiga o\'tkazing');
-        showToast('Word 97-2003 (.doc) eskirgan binar format bo\'lganligi sababli, faylni Word yoki Google Docs dasturida "Boshqa formatda saqlash (.docx)" qilib yuklang. Tizim .docx formatdagi barcha jadvallar, shriftlar va rasmlarni 100% saqlagan holda darhol o\'girib beradi.', 'error');
-        resetFileUI();
-        return;
-      }
       if (targetFormat === 'pdf' || targetFormat === 'doc') {
         updateProgress(0, 'Backend xizmati talab etiladi');
-        showToast('.pdf va .doc eksport qilish uchun LibreOffice backend xizmati talab etiladi.', 'error');
+        showToast('.pdf va .doc formatlariga eksport qilish uchun LibreOffice backend xizmati talab etiladi.', 'error');
         resetFileUI();
         return;
       }

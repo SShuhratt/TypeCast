@@ -3,16 +3,22 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "bundle:doc": "esbuild frontend/js/libs/doc-extractor-entry.js --bundle --platform=browser --alias:stream=readable-stream --outfile=frontend/js/libs/doc_extractor.bundle.js --minify",
+    "test": "python3 -m unittest discover backend/tests/"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "jszip": "^3.10.1"
+    "buffer": "^6.0.3",
+    "events": "^3.3.0",
+    "jszip": "^3.10.1",
+    "readable-stream": "^4.7.0",
+    "word-extractor": "^1.0.4"
   },
   "devDependencies": {
-    "@xmldom/xmldom": "^0.9.12"
+    "@xmldom/xmldom": "^0.9.12",
+    "esbuild": "^0.28.2"
   }
 }
