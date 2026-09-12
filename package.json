@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "bundle:doc": "esbuild frontend/js/libs/doc-extractor-entry.js --bundle --platform=browser --alias:stream=readable-stream --outfile=frontend/js/libs/doc_extractor.bundle.js --minify",
+    "bundle:doc": "esbuild frontend/js/libs/doc-extractor-entry.js --bundle --platform=browser --alias:stream=./frontend/js/libs/stream-mock.js --inject:frontend/js/libs/buffer-shim.js --outfile=frontend/js/libs/doc_extractor.bundle.js --minify",
     "test": "python3 -m unittest discover backend/tests/"
   },
   "keywords": [],
