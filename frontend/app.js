@@ -407,37 +407,53 @@
     var direction = docDirectionSelect.value;
     var targetFormat = docFormatSelect.value;
 
-    // Option 3: Modernize legacy .doc -> .docx by default
-    if (ext === 'doc' && (targetFormat === 'same' || targetFormat === 'docx')) {
-      targetFormat = 'docx';
-    }
+    // Determine target output extension
+    var outExt = targetFormat === 'same' ? ext : targetFormat;
 
     updateProgress(5, 'Hujjat tahlil qilinmoqda...');
 
-    // Scenario A: Client-side processing (.docx, .doc, or .txt)
-    var canProcessClientSide = (ext === 'docx' && (targetFormat === 'same' || targetFormat === 'docx')) ||
-                               (ext === 'doc' && (targetFormat === 'same' || targetFormat === 'docx')) ||
-                               (ext === 'txt' && (targetFormat === 'same' || targetFormat === 'txt'));
+    // Scenario A: Client-side processing (.docx, .doc, or .txt to docx, doc, or txt)
+    var canProcessClientSide = (ext === 'docx' && (outExt === 'docx' || outExt === 'doc')) ||
+                               (ext === 'doc' && (outExt === 'docx' || outExt === 'doc')) ||
+                               (ext === 'txt' && (outExt === 'txt' || outExt === 'doc' || outExt === 'docx'));
 
     if (canProcessClientSide) {
       try {
         var resultBlob;
-        var outExt = targetFormat === 'same' ? (ext === 'doc' ? 'docx' : ext) : targetFormat;
         var baseName = file.name.substring(0, file.name.lastIndexOf('.'));
         state.convertedFileName = baseName + '_' + (direction === 'latin-to-cyrillic' ? 'kirill' : 'lotin') + '.' + outExt;
 
-        if (ext === 'docx') {
+        if (ext === 'docx' && outExt === 'docx') {
           resultBlob = await DocxEngine.transliterateDocx(file, direction, function (pct, msg) {
             updateProgress(pct, msg);
           });
-        } else if (ext === 'doc') {
-          resultBlob = await DocxEngine.transliterateDoc(file, direction, function (pct, msg) {
+        } else if (ext === 'docx' && outExt === 'doc') {
+          resultBlob = await DocxEngine.transliterateDocxToDoc(file, direction, function (pct, msg) {
             updateProgress(pct, msg);
           });
-          showToast('Word 97-2003 (.doc) zamonaviy .docx formatiga muvaffaqiyatli modernizatsiya qilindi!', 'success');
+          showToast('Word (.docx ➔ .doc) hujjati muvaffaqiyatli o\'girildi!', 'success');
+        } else if (ext === 'doc') {
+          resultBlob = await DocxEngine.transliterateDoc(file, direction, outExt, function (pct, msg) {
+            updateProgress(pct, msg);
+          });
+          if (outExt === 'doc') {
+            showToast('Word (.doc ➔ .doc) hujjati muvaffaqiyatli o\'girildi!', 'success');
+          } else {
+            showToast('Word (.doc ➔ .docx) hujjati muvaffaqiyatli modernizatsiya qilindi!', 'success');
+          }
         } else {
           updateProgress(30, 'Matn o\'qilmoqda...');
-          resultBlob = await DocxEngine.transliterateTxt(file, direction);
+          if (outExt === 'doc') {
+            var txtContent = await file.text();
+            var convTxt = UzbekTransliterator.transliterate(txtContent, direction);
+            resultBlob = DocxEngine.createDocFileFromText(convTxt);
+          } else if (outExt === 'docx') {
+            var txtContent2 = await file.text();
+            var convTxt2 = UzbekTransliterator.transliterate(txtContent2, direction);
+            resultBlob = await DocxEngine.createDocxFromText(convTxt2);
+          } else {
+            resultBlob = await DocxEngine.transliterateTxt(file, direction);
+          }
           updateProgress(100, 'Tayyor!');
         }
 
@@ -451,11 +467,11 @@
       return;
     }
 
-    // Scenario B: Backend Processing (Required for exports to .pdf or legacy .doc)
+    // Scenario B: Backend Processing (Required for exports to .pdf)
     if (!state.backendAvailable) {
-      if (targetFormat === 'pdf' || targetFormat === 'doc') {
+      if (targetFormat === 'pdf') {
         updateProgress(0, 'Backend xizmati talab etiladi');
-        showToast('.pdf va .doc formatlariga eksport qilish uchun LibreOffice backend xizmati talab etiladi.', 'error');
+        showToast('.pdf formatiga eksport qilish uchun LibreOffice backend xizmati talab etiladi.', 'error');
         resetFileUI();
         return;
       }

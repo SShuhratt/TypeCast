@@ -317,8 +317,144 @@
    * @param {function} onProgress callback (percent, statusText)
    * @returns {Promise<Blob>} Transliterated and modernized .docx Blob
    */
-  async function transliterateDoc(fileInput, direction, onProgress) {
+  /**
+   * Encodes a string into Word-compatible RTF (Rich Text Format).
+   * Maps Unicode Cyrillic & Latin characters into standard \uN? control words.
+   */
+  function textToRtf(text) {
+    if (!text) return '';
+    var rtf = '';
+    for (var i = 0; i < text.length; i++) {
+      var code = text.charCodeAt(i);
+      if (code > 127) {
+        var signed = code > 32767 ? code - 65536 : code;
+        rtf += '\\u' + signed + '?';
+      } else if (text[i] === '\n') {
+        rtf += '\\par\n';
+      } else if (text[i] === '\\' || text[i] === '{' || text[i] === '}') {
+        rtf += '\\' + text[i];
+      } else {
+        rtf += text[i];
+      }
+    }
+    return rtf;
+  }
+
+  /**
+   * Builds a Word-compatible .doc file (application/msword) from transliterated text.
+   * Standard A4 geometry (210mm x 297mm), Times New Roman 12pt, 1.15 line spacing.
+   */
+  function createDocFileFromText(text, headerText, footerText) {
+    var headerBlock = headerText ? '{\\header \\pard\\qr\\fs20\\f0 ' + textToRtf(headerText) + '\\par}\n' : '';
+    var footerBlock = footerText ? '{\\footer \\pard\\qc\\fs20\\f0 ' + textToRtf(footerText) + '\\par}\n' : '';
+
+    var rtfDocument =
+      '{\\rtf1\\ansi\\ansicpg1251\\deff0\\deflang1091\n' +
+      '{\\fonttbl{\\f0\\froman\\fcharset204 Times New Roman;}{\\f1\\froman\\fcharset0 Times New Roman;}}\n' +
+      '{\\colortbl ;\\red0\\green0\\blue0;}\n' +
+      '\\paperw11906\\paperh16838\\margl1701\\margr1134\\margt1134\\margb1134\n' +
+      '\\viewkind4\\uc1\n' +
+      headerBlock +
+      footerBlock +
+      '\\pard\\f0\\fs24\\sl276\\slmult1\n' +
+      textToRtf(text) + '\n' +
+      '\\par\n' +
+      '}';
+
+    return new Blob([rtfDocument], { type: 'application/msword;charset=utf-8' });
+  }
+
+  /**
+   * Transliterates a .docx file and converts it into a Word-compatible .doc file.
+   */
+  async function transliterateDocxToDoc(fileInput, direction, onProgress) {
     direction = direction || 'latin-to-cyrillic';
+    if (onProgress) onProgress(15, 'Word (.docx) hujjati tahlil qilinmoqda...');
+
+    var zip = await JSZip.loadAsync(fileInput);
+    var docXmlEntry = zip.file('word/document.xml');
+    if (!docXmlEntry) {
+      throw new Error('Noto\'g\'ri .docx fayl: word/document.xml topilmadi.');
+    }
+
+    var xmlContent = await docXmlEntry.async('string');
+    var parser = new (typeof DOMParser !== 'undefined' ? DOMParser : require('@xmldom/xmldom').DOMParser)();
+    var xmlDoc = parser.parseFromString(xmlContent, 'application/xml');
+
+    if (onProgress) onProgress(45, 'Paragraflar ajratib olinmoqda va transliteratsiya qilinmoqda...');
+
+    var paragraphs = xmlDoc.getElementsByTagName('w:p');
+    if (!paragraphs || paragraphs.length === 0) {
+      paragraphs = xmlDoc.getElementsByTagNameNS('*', 'p');
+    }
+
+    var textParts = [];
+    for (var i = 0; i < paragraphs.length; i++) {
+      var p = paragraphs[i];
+      mergeAdjacentRunsInParagraph(p);
+      var tNodes = p.getElementsByTagName('w:t');
+      if (!tNodes || tNodes.length === 0) {
+        tNodes = p.getElementsByTagNameNS('*', 't');
+      }
+      var pText = '';
+      for (var j = 0; j < tNodes.length; j++) {
+        pText += tNodes[j].textContent || '';
+      }
+      var transliteratedLine = UzbekTransliterator.transliterate(pText, direction);
+      textParts.push(transliteratedLine);
+    }
+
+    var headerText = '';
+    var footerText = '';
+    var headerEntries = zip.file(/^word\/header\d+\.xml$/);
+    if (headerEntries && headerEntries.length > 0) {
+      var hXml = await headerEntries[0].async('string');
+      var hDoc = parser.parseFromString(hXml, 'application/xml');
+      var hNodes = hDoc.getElementsByTagName('w:t');
+      for (var k = 0; k < hNodes.length; k++) {
+        headerText += (hNodes[k].textContent || '') + ' ';
+      }
+      headerText = UzbekTransliterator.transliterate(headerText.trim(), direction);
+    }
+
+    var footerEntries = zip.file(/^word\/footer\d+\.xml$/);
+    if (footerEntries && footerEntries.length > 0) {
+      var fXml = await footerEntries[0].async('string');
+      var fDoc = parser.parseFromString(fXml, 'application/xml');
+      var fNodes = fDoc.getElementsByTagName('w:t');
+      for (var m = 0; m < fNodes.length; m++) {
+        footerText += (fNodes[m].textContent || '') + ' ';
+      }
+      footerText = UzbekTransliterator.transliterate(footerText.trim(), direction);
+    }
+
+    if (onProgress) onProgress(80, 'Word (.doc) formati shakllantirilmoqda...');
+
+    var docBlob = createDocFileFromText(textParts.join('\n'), headerText, footerText);
+
+    if (onProgress) onProgress(100, 'Tayyor! Word (.doc) hujjati yaratildi.');
+
+    return docBlob;
+  }
+
+  /**
+   * Transliterates legacy Word 97-2003 (.doc) binary documents in-memory.
+   * Supports targetFormat 'doc' (.doc to .doc) or 'docx' (.doc to .docx).
+   *
+   * @param {File|Blob|ArrayBuffer} fileInput
+   * @param {string} direction 'latin-to-cyrillic' | 'cyrillic-to-latin'
+   * @param {string} targetFormat 'doc' | 'docx'
+   * @param {function} onProgress callback (percent, statusText)
+   * @returns {Promise<Blob>} Transliterated .doc or .docx Blob
+   */
+  async function transliterateDoc(fileInput, direction, targetFormat, onProgress) {
+    if (typeof targetFormat === 'function') {
+      onProgress = targetFormat;
+      targetFormat = 'doc';
+    }
+    direction = direction || 'latin-to-cyrillic';
+    targetFormat = targetFormat || 'doc';
+
     if (onProgress) onProgress(15, 'Word 97-2003 (.doc) binar hujjati o\'qilmoqda...');
 
     var arrayBuffer;
@@ -362,13 +498,17 @@
       transliteratedBody += '\n\n' + transliteratedFootnotes;
     }
 
-    if (onProgress) onProgress(80, 'Zamonaviy .docx shakllantirilmoqda...');
-
-    var docxBlob = await createDocxFromText(transliteratedBody, transliteratedHeader, transliteratedFooter);
-
-    if (onProgress) onProgress(100, 'Tayyor! Zamonaviy .docx shakliga o\'tkazildi.');
-
-    return docxBlob;
+    if (targetFormat === 'doc') {
+      if (onProgress) onProgress(85, 'Word (.doc) formati shakllantirilmoqda...');
+      var docBlob = createDocFileFromText(transliteratedBody, transliteratedHeader, transliteratedFooter);
+      if (onProgress) onProgress(100, 'Tayyor! Word (.doc) hujjati yaratildi.');
+      return docBlob;
+    } else {
+      if (onProgress) onProgress(85, 'Zamonaviy .docx shakllantirilmoqda...');
+      var docxBlob = await createDocxFromText(transliteratedBody, transliteratedHeader, transliteratedFooter);
+      if (onProgress) onProgress(100, 'Tayyor! Zamonaviy .docx shakliga o\'tkazildi.');
+      return docxBlob;
+    }
   }
 
   /**
@@ -389,9 +529,12 @@
 
   return {
     transliterateDocx: transliterateDocx,
+    transliterateDocxToDoc: transliterateDocxToDoc,
     transliterateDoc: transliterateDoc,
     transliterateTxt: transliterateTxt,
     createDocxFromText: createDocxFromText,
+    createDocFileFromText: createDocFileFromText,
+    textToRtf: textToRtf,
     downloadBlob: downloadBlob,
     transliterateXmlDocument: transliterateXmlDocument
   };
