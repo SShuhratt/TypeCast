@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "bundle:buffer": "esbuild node_modules/buffer/index.js --bundle --platform=browser --global-name=BufferModule --outfile=frontend/js/libs/buffer.min.js --minify --footer:js=\"if (typeof window !== 'undefined') { window.Buffer = BufferModule.Buffer; } if (typeof globalThis !== 'undefined') { globalThis.Buffer = BufferModule.Buffer; }\"",
-    "bundle:extractor": "esbuild frontend/js/libs/doc-extractor-entry.js --bundle --platform=browser --alias:stream=./frontend/js/libs/stream-mock.js --external:buffer --banner:js=\"var Buffer = (typeof window !== 'undefined' ? window.Buffer : (typeof globalThis !== 'undefined' ? globalThis.Buffer : undefined));\" --outfile=frontend/js/libs/doc_extractor.bundle.js --minify",
-    "bundle:doc": "npm run bundle:buffer && npm run bundle:extractor",
+    "bundle:doc": "esbuild frontend/js/libs/doc-extractor-entry.js --bundle --platform=browser --alias:stream=./frontend/js/libs/stream-mock.js --inject:frontend/js/libs/buffer-shim.js --outfile=frontend/js/libs/doc_extractor.bundle.js --minify",
     "test": "python3 -m unittest discover backend/tests/"
   },
   "keywords": [],
