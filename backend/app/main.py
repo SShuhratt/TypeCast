@@ -14,6 +14,7 @@ from typing import Optional, Literal
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend.app.transliterator import transliterate
@@ -175,3 +176,17 @@ async def transliterate_file_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process document: {str(e)}"
         )
+
+
+# Serve static frontend files (mounted after API routes so /api/* takes precedence)
+_frontend_candidates = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend")),
+    "/app/frontend",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "frontend")),
+]
+for _candidate in _frontend_candidates:
+    if os.path.isdir(_candidate):
+        app.mount("/", StaticFiles(directory=_candidate, html=True), name="frontend")
+        logger.info(f"Serving static frontend UI from: {_candidate}")
+        break
+
