@@ -4,7 +4,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "destination": "https://vzqh9zidbqzglseyg64lw8sf.92.5.62.107.sslip.io/api/$1"
     },
     {
       "source": "/(.*)",

@@ -14,12 +14,20 @@
 (function () {
   'use strict';
 
-  // API endpoint configuration (auto-detects local backend on port 8000 if served from dev port)
-  var API_BASE_URL = window.TYPECAST_API_URL || (
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port !== '8000'
-      ? window.location.protocol + '//' + window.location.hostname + ':8000'
-      : ''
-  );
+  // API endpoint configuration:
+  // - Uses window.TYPECAST_API_URL if explicitly provided
+  // - On local dev ports, routes to local FastAPI backend on port 8000
+  // - On the Oracle VPS / Coolify backend host itself, uses same-origin ('')
+  // - On Vercel UI (typecast-tau.vercel.app) or other static hosts, routes directly to Oracle VPS HTTPS backend
+  var SERVER_API_URL = 'https://vzqh9zidbqzglseyg64lw8sf.92.5.62.107.sslip.io';
+  var isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  var isBackendHost = window.location.hostname === 'vzqh9zidbqzglseyg64lw8sf.92.5.62.107.sslip.io' ||
+                      window.location.hostname === '92.5.62.107';
+  var API_BASE_URL = typeof window.TYPECAST_API_URL === 'string'
+    ? window.TYPECAST_API_URL
+    : (isLocalHost
+        ? (window.location.port !== '8000' ? window.location.protocol + '//' + window.location.hostname + ':8000' : '')
+        : (isBackendHost ? '' : SERVER_API_URL));
 
   // State
   var state = {
@@ -145,7 +153,7 @@
 
         engineStatusPill.classList.add('active');
         if (state.libreofficeAvailable) {
-          engineStatusText.textContent = 'Docker & LibreOffice Ulangan';
+          engineStatusText.textContent = 'Server & LibreOffice Ulangan';
         } else {
           engineStatusText.textContent = 'Backend API Ulangan';
         }
@@ -402,132 +410,146 @@
     if (statusMsg) progressStatusText.textContent = statusMsg;
   }
 
+  async function processFileClientSide(file, ext, direction, outExt) {
+    try {
+      var resultBlob;
+      var baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+      state.convertedFileName = baseName + '_' + (direction === 'latin-to-cyrillic' ? 'kirill' : 'lotin') + '.' + outExt;
+
+      if (ext === 'docx' && outExt === 'docx') {
+        resultBlob = await DocxEngine.transliterateDocx(file, direction, function (pct, msg) {
+          updateProgress(pct, msg);
+        });
+      } else if (ext === 'docx' && outExt === 'doc') {
+        resultBlob = await DocxEngine.transliterateDocxToDoc(file, direction, function (pct, msg) {
+          updateProgress(pct, msg);
+        });
+        showToast('Word (.docx ➔ .doc) hujjati muvaffaqiyatli o\'girildi!', 'success');
+      } else if (ext === 'doc') {
+        resultBlob = await DocxEngine.transliterateDoc(file, direction, outExt, function (pct, msg) {
+          updateProgress(pct, msg);
+        });
+        if (outExt === 'doc') {
+          showToast('Word (.doc ➔ .doc) hujjati muvaffaqiyatli o\'girildi!', 'success');
+        } else {
+          showToast('Word (.doc ➔ .docx) hujjati muvaffaqiyatli modernizatsiya qilindi!', 'success');
+        }
+      } else {
+        updateProgress(30, 'Matn o\'qilmoqda...');
+        if (outExt === 'doc') {
+          var txtContent = await file.text();
+          var convTxt = UzbekTransliterator.transliterate(txtContent, direction);
+          resultBlob = DocxEngine.createDocFileFromText(convTxt);
+        } else if (outExt === 'docx') {
+          var txtContent2 = await file.text();
+          var convTxt2 = UzbekTransliterator.transliterate(txtContent2, direction);
+          resultBlob = await DocxEngine.createDocxFromText(convTxt2);
+        } else {
+          resultBlob = await DocxEngine.transliterateTxt(file, direction);
+        }
+        updateProgress(100, 'Tayyor!');
+      }
+
+      state.convertedBlob = resultBlob;
+      onConversionSuccess();
+    } catch (err) {
+      console.error('Client conversion error:', err);
+      showToast('Brauzerda qayta ishlashda xatolik: ' + err.message, 'error');
+      resetFileUI();
+    }
+  }
+
+  function extractDownloadFilename(response, file, ext, direction, targetFormat) {
+    var disp = response.headers.get('Content-Disposition');
+    var filename = '';
+    if (disp) {
+      var utf8Match = disp.match(/filename\*=UTF-8''([^;]+)/i);
+      if (utf8Match && utf8Match[1]) {
+        try {
+          filename = decodeURIComponent(utf8Match[1]);
+        } catch (e) {}
+      }
+      if (!filename && disp.indexOf('filename=') !== -1) {
+        var match = disp.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+    }
+
+    if (!filename) {
+      var base = file.name.substring(0, file.name.lastIndexOf('.'));
+      var chosenExt = targetFormat === 'same' ? ext : targetFormat;
+      filename = base + '_' + (direction === 'latin-to-cyrillic' ? 'kirill' : 'lotin') + '.' + chosenExt;
+    }
+    return filename;
+  }
+
   async function processSelectedFile(file) {
     var ext = file.name.split('.').pop().toLowerCase();
     var direction = docDirectionSelect.value;
     var targetFormat = docFormatSelect.value;
-
-    // Determine target output extension
     var outExt = targetFormat === 'same' ? ext : targetFormat;
 
     updateProgress(5, 'Hujjat tahlil qilinmoqda...');
 
-    // Scenario A: Client-side processing (.docx, .doc, or .txt to docx, doc, or txt)
-    var canProcessClientSide = (ext === 'docx' && (outExt === 'docx' || outExt === 'doc')) ||
-                               (ext === 'doc' && (outExt === 'docx' || outExt === 'doc')) ||
-                               (ext === 'txt' && (outExt === 'txt' || outExt === 'doc' || outExt === 'docx'));
+    // Refresh backend health status if not yet verified
+    if (!state.backendAvailable) {
+      await checkBackendHealth();
+    }
 
-    if (canProcessClientSide) {
+    // Prefer Server Backend (Oracle VPS + LibreOffice) whenever online
+    if (state.backendAvailable) {
       try {
-        var resultBlob;
-        var baseName = file.name.substring(0, file.name.lastIndexOf('.'));
-        state.convertedFileName = baseName + '_' + (direction === 'latin-to-cyrillic' ? 'kirill' : 'lotin') + '.' + outExt;
-
-        if (ext === 'docx' && outExt === 'docx') {
-          resultBlob = await DocxEngine.transliterateDocx(file, direction, function (pct, msg) {
-            updateProgress(pct, msg);
-          });
-        } else if (ext === 'docx' && outExt === 'doc') {
-          resultBlob = await DocxEngine.transliterateDocxToDoc(file, direction, function (pct, msg) {
-            updateProgress(pct, msg);
-          });
-          showToast('Word (.docx ➔ .doc) hujjati muvaffaqiyatli o\'girildi!', 'success');
-        } else if (ext === 'doc') {
-          resultBlob = await DocxEngine.transliterateDoc(file, direction, outExt, function (pct, msg) {
-            updateProgress(pct, msg);
-          });
-          if (outExt === 'doc') {
-            showToast('Word (.doc ➔ .doc) hujjati muvaffaqiyatli o\'girildi!', 'success');
-          } else {
-            showToast('Word (.doc ➔ .docx) hujjati muvaffaqiyatli modernizatsiya qilindi!', 'success');
-          }
+        if (ext === 'doc' || outExt === 'doc' || outExt === 'pdf') {
+          updateProgress(20, 'Hujjat serverda LibreOffice orqali qayta ishlanmoqda...');
         } else {
-          updateProgress(30, 'Matn o\'qilmoqda...');
-          if (outExt === 'doc') {
-            var txtContent = await file.text();
-            var convTxt = UzbekTransliterator.transliterate(txtContent, direction);
-            resultBlob = DocxEngine.createDocFileFromText(convTxt);
-          } else if (outExt === 'docx') {
-            var txtContent2 = await file.text();
-            var convTxt2 = UzbekTransliterator.transliterate(txtContent2, direction);
-            resultBlob = await DocxEngine.createDocxFromText(convTxt2);
-          } else {
-            resultBlob = await DocxEngine.transliterateTxt(file, direction);
-          }
-          updateProgress(100, 'Tayyor!');
+          updateProgress(20, 'Fayl serverga yuborilmoqda...');
         }
 
-        state.convertedBlob = resultBlob;
+        var formData = new FormData();
+        formData.append('file', file);
+        formData.append('direction', direction);
+        formData.append('target_format', targetFormat);
+
+        var response = await fetch(API_BASE_URL + '/api/transliterate/file', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          var errJson = await response.json().catch(function () { return {}; });
+          throw new Error(errJson.detail || ('Server xatosi: ' + response.status));
+        }
+
+        updateProgress(80, 'Natija yuklab olinmoqda...');
+        var blob = await response.blob();
+        var filename = extractDownloadFilename(response, file, ext, direction, targetFormat);
+
+        state.convertedBlob = blob;
+        state.convertedFileName = filename;
+
+        updateProgress(100, 'Tayyor!');
         onConversionSuccess();
       } catch (err) {
-        console.error('Client conversion error:', err);
-        showToast('Brauzerda qayta ishlashda xatolik: ' + err.message, 'error');
+        console.error('Backend conversion failed:', err);
+        showToast('Faylni qayta ishlashda xatolik: ' + err.message, 'error');
         resetFileUI();
       }
       return;
     }
 
-    // Scenario B: Backend Processing (Required for exports to .pdf)
-    if (!state.backendAvailable) {
-      if (targetFormat === 'pdf') {
-        updateProgress(0, 'Backend xizmati talab etiladi');
-        showToast('.pdf formatiga eksport qilish uchun LibreOffice backend xizmati talab etiladi.', 'error');
-        resetFileUI();
-        return;
-      }
+    // Fallback: Client-side processing when backend server is unreachable
+    var canProcessClientSide = (ext === 'docx' && (outExt === 'docx' || outExt === 'doc')) ||
+                               (ext === 'doc' && (outExt === 'docx' || outExt === 'doc')) ||
+                               (ext === 'txt' && (outExt === 'txt' || outExt === 'doc' || outExt === 'docx'));
+
+    if (canProcessClientSide) {
+      await processFileClientSide(file, ext, direction, outExt);
+      return;
     }
 
-    // Send to Backend API
-    try {
-      if (ext === 'doc') {
-        updateProgress(20, 'Eski Word (.doc) zamonaviy (.docx) ga modernizatsiya qilinmoqda...');
-      } else {
-        updateProgress(20, 'Fayl serverga yuborilmoqda...');
-      }
-
-      var formData = new FormData();
-      formData.append('file', file);
-      formData.append('direction', direction);
-      formData.append('target_format', targetFormat);
-
-      var response = await fetch(API_BASE_URL + '/api/transliterate/file', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        var errJson = await response.json().catch(function () { return {}; });
-        throw new Error(errJson.detail || ('Server xatosi: ' + response.status));
-      }
-
-      updateProgress(80, 'Natija yuklab olinmoqda...');
-      var blob = await response.blob();
-
-      // Extract filename from Content-Disposition header if available
-      var disp = response.headers.get('Content-Disposition');
-      var filename = '';
-      if (disp && disp.indexOf('filename=') !== -1) {
-        var match = disp.match(/filename="?([^";]+)"?/);
-        if (match && match[1]) filename = match[1];
-      }
-
-      if (!filename) {
-        var base = file.name.substring(0, file.name.lastIndexOf('.'));
-        var chosenExt = targetFormat === 'same' ? ext : targetFormat;
-        filename = base + '_' + (direction === 'latin-to-cyrillic' ? 'kirill' : 'lotin') + '.' + chosenExt;
-      }
-
-      state.convertedBlob = blob;
-      state.convertedFileName = filename;
-
-      updateProgress(100, 'Tayyor!');
-      onConversionSuccess();
-
-    } catch (err) {
-      console.error('Backend conversion failed:', err);
-      showToast('Faylni qayta ishlashda xatolik: ' + err.message, 'error');
-      resetFileUI();
-    }
+    updateProgress(0, 'Backend xizmati talab etiladi');
+    showToast('.pdf formatiga eksport qilish uchun LibreOffice backend xizmati talab etiladi.', 'error');
+    resetFileUI();
   }
 
   function onConversionSuccess() {
